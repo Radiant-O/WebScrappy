@@ -1,0 +1,14 @@
+selenium==4.16.0
+beautifulsoup4==4.12.2
+requests==2.31.0
+python-dotenv==1.0.0
+google-api-python-client==2.108.0
+openpyxl==3.1.2  # For Excel support
+xlsxwriter==3.1.9  # Additional Excel support
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+schedule==1.2.1
+tablib==3.5.0  # Alternative to pandas for data handling
+facebook-sdk==3.1.0  # Alternative to facebook-scraper
+selenium-stealth==1.0.6
+webdriver_manager==4.0.1
