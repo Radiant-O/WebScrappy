@@ -579,3 +579,6 @@ Stacktrace:
 2024-12-17 14:31:17,843 - __main__ - WARNING - No leads found!
 2024-12-17 14:33:33,066 - undetected_chromedriver.patcher - INFO - patching driver executable C:\Users\Radiant\appdata\roaming\undetected_chromedriver\undetected_chromedriver.exe
 2024-12-17 14:33:38,278 - scrapers.google_maps_scraper - ERROR - Error setting up Chrome driver: name 'random' is not defined
+2024-12-17 14:35:11,018 - undetected_chromedriver.patcher - INFO - patching driver executable C:\Users\Radiant\appdata\roaming\undetected_chromedriver\undetected_chromedriver.exe
+2024-12-17 14:35:17,633 - scrapers.google_maps_scraper - INFO - Restored 0 leads from backup
+2024-12-17 14:35:18,147 - __main__ - WARNING - No leads found!
