@@ -12,3 +12,4 @@ tablib==3.5.0  # Alternative to pandas for data handling
 facebook-sdk==3.1.0  # Alternative to facebook-scraper
 selenium-stealth==1.0.6
 webdriver_manager==4.0.1
+pandas==2.1.4
