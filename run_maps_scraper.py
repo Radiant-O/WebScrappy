@@ -60,7 +60,7 @@ def export_leads(leads, format='xlsx'):
 def main():
     # Test queries (even smaller set for testing)
     queries = [
-        "lawyers in Houston, TX",  # Smaller dataset for testing
+        "lawyers in Houston, TX",
         "lawyers in Austin, TX"
     ]
     
@@ -68,23 +68,21 @@ def main():
     scraper = GoogleMapsScraper()
     
     try:
-        # Run all queries
+        # Run scraper
         leads = scraper.scrape(queries)
         
-        # Export final results
+        # Export results
         if leads:
-            # Export to both formats
             csv_file = export_leads(leads, 'csv')
             xlsx_file = export_leads(leads, 'xlsx')
-            
-            logger.info(f"Successfully scraped total of {len(leads)} leads!")
-            logger.info(f"Final results exported to {csv_file} and {xlsx_file}")
+            logger.info(f"Successfully scraped {len(leads)} leads!")
+            logger.info(f"Results exported to {csv_file} and {xlsx_file}")
         else:
             logger.warning("No leads found!")
             
     except Exception as e:
         logger.error(f"Error during scraping: {str(e)}")
-        raise  # Re-raise to see full error
+        raise
     finally:
         scraper.cleanup()
 

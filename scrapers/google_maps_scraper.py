@@ -1,15 +1,14 @@
-from typing import Dict, List, Tuple
-import undetected_chromedriver as uc
+import logging
+import time
+import re
+from typing import List, Dict, Optional, Tuple
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
+import undetected_chromedriver as uc
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium_stealth import stealth
 from .base_scraper import BaseScraper
-import time
-import logging
-import random
-import re
 import json
 from datetime import datetime
 
@@ -17,6 +16,7 @@ class GoogleMapsScraper(BaseScraper):
     def __init__(self):
         super().__init__()
         self.driver = None
+        self.logger = logging.getLogger(__name__)
         self.setup_driver()
         
     def setup_driver(self):
@@ -24,15 +24,11 @@ class GoogleMapsScraper(BaseScraper):
         try:
             options = uc.ChromeOptions()
             options.add_argument("--no-sandbox")
+            options.add_argument("--start-maximized")
             options.add_argument("--disable-dev-shm-usage")
-            options.add_argument("--window-size=1920,1080")
             options.add_argument("--disable-gpu")
             options.add_argument("--disable-extensions")
-            options.add_argument("--disable-notifications")
-            options.add_argument("--ignore-certificate-errors")
-            options.add_argument("--disable-popup-blocking")
             
-            # Increase timeouts and stability
             self.driver = uc.Chrome(options=options)
             self.driver.set_page_load_timeout(30)
             self.driver.implicitly_wait(10)
@@ -120,47 +116,6 @@ class GoogleMapsScraper(BaseScraper):
                     EC.presence_of_element_located((By.CSS_SELECTOR, 'div[role="feed"]'))
                 )
                 
-                # Scroll through results
-                scroll_pause = 2
-                last_height = 0
-                scroll_attempts = 0
-                max_attempts = 20  # Increased for more results
-                
-                while scroll_attempts < max_attempts:
-                    try:
-                        # Scroll results panel
-                        self.driver.execute_script(
-                            'document.querySelector(\'div[role="feed"]\').scrollTop += 800'
-                        )
-                        time.sleep(scroll_pause)
-                        
-                        # Try to load more results if available
-                        try:
-                            load_more = WebDriverWait(self.driver, 5).until(
-                                EC.presence_of_element_located((By.CSS_SELECTOR, 'button[aria-label*="results"]'))
-                            )
-                            load_more.click()
-                            time.sleep(2)
-                        except:
-                            pass
-                        
-                        new_height = self.driver.execute_script(
-                            'return document.querySelector(\'div[role="feed"]\').scrollTop'
-                        )
-                        
-                        if new_height == last_height:
-                            break
-                            
-                        last_height = new_height
-                        scroll_attempts += 1
-                        
-                    except Exception as e:
-                        self.logger.error(f"Error during scrolling: {str(e)}")
-                        break
-                
-                # Wait for all listings to load
-                time.sleep(3)
-                
                 # Find all listings
                 listings = WebDriverWait(self.driver, 10).until(
                     EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.Nv2PK'))
@@ -170,21 +125,11 @@ class GoogleMapsScraper(BaseScraper):
                 # Process listings with better error handling
                 for idx, listing in enumerate(listings):
                     try:
-                        # Use JavaScript to click the listing with retry
-                        max_click_retries = 3
-                        click_success = False
-                        
-                        for _ in range(max_click_retries):
-                            try:
-                                self.driver.execute_script("arguments[0].click();", listing)
-                                time.sleep(3)
-                                click_success = True
-                                break
-                            except:
-                                time.sleep(1)
-                                continue
-                        
-                        if not click_success:
+                        # Use JavaScript to click the listing
+                        try:
+                            self.driver.execute_script("arguments[0].click();", listing)
+                            time.sleep(3)
+                        except:
                             continue
                         
                         # Get business details with explicit waits
@@ -194,7 +139,7 @@ class GoogleMapsScraper(BaseScraper):
                         
                         self.click_more_info()
                         
-                        # Rest of the code for extracting details...
+                        # Extract data
                         lead_data = {
                             'name': name,
                             'website': None,
@@ -253,19 +198,6 @@ class GoogleMapsScraper(BaseScraper):
                         if self.validate_data(lead_data):
                             leads.append(self.format_lead_data(lead_data))
                             self.logger.info(f"Added lead {idx + 1}/{len(listings)}: {name}")
-                            
-                            # Save progress every 10 listings
-                            if (idx + 1) % 10 == 0:
-                                try:
-                                    with open(f'query_progress_{query.replace(" ", "_")}.json', 'w') as f:
-                                        json.dump({
-                                            'query': query,
-                                            'leads': leads,
-                                            'processed_listings': idx + 1
-                                        }, f)
-                                    self.logger.info(f"Saved progress after {idx + 1} listings")
-                                except Exception as e:
-                                    self.logger.error(f"Error saving listing progress: {str(e)}")
                         
                         time.sleep(1)
                         
@@ -279,17 +211,6 @@ class GoogleMapsScraper(BaseScraper):
             except Exception as e:
                 self.logger.error(f"Error searching area (attempt {retry_count + 1}/{max_retries}): {str(e)}")
                 retry_count += 1
-                
-                # Save whatever leads we have on error
-                if leads:
-                    try:
-                        with open(f'error_backup_{query.replace(" ", "_")}.json', 'w') as f:
-                            json.dump({
-                                'query': query,
-                                'leads': leads
-                            }, f)
-                    except:
-                        pass
                 
                 if retry_count < max_retries:
                     self.logger.info(f"Retrying search for query: {query}")
