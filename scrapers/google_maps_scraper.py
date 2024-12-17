@@ -22,13 +22,6 @@ class GoogleMapsScraper(BaseScraper):
     def setup_driver(self):
         """Setup Selenium WebDriver with undetected-chromedriver"""
         try:
-            # Clean up existing chromedriver files
-            import os
-            import shutil
-            chromedriver_path = os.path.expanduser('~/.local/share/undetected_chromedriver')
-            if os.path.exists(chromedriver_path):
-                shutil.rmtree(chromedriver_path)
-            
             options = uc.ChromeOptions()
             options.add_argument("--no-sandbox")
             options.add_argument("--disable-dev-shm-usage")
@@ -59,9 +52,6 @@ class GoogleMapsScraper(BaseScraper):
                 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.140 Safari/537.36'
             ]
             self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": random.choice(user_agents)})
-            
-            # Add error handling
-            self.driver.set_script_timeout(30)
             
         except Exception as e:
             self.logger.error(f"Error setting up Chrome driver: {str(e)}")
@@ -134,7 +124,7 @@ class GoogleMapsScraper(BaseScraper):
                 scroll_pause = 2
                 last_height = 0
                 scroll_attempts = 0
-                max_attempts = 20
+                max_attempts = 20  # Increased for more results
                 
                 while scroll_attempts < max_attempts:
                     try:
@@ -264,8 +254,8 @@ class GoogleMapsScraper(BaseScraper):
                             leads.append(self.format_lead_data(lead_data))
                             self.logger.info(f"Added lead {idx + 1}/{len(listings)}: {name}")
                             
-                            # Save progress every 5 listings
-                            if (idx + 1) % 5 == 0:
+                            # Save progress every 10 listings
+                            if (idx + 1) % 10 == 0:
                                 try:
                                     with open(f'query_progress_{query.replace(" ", "_")}.json', 'w') as f:
                                         json.dump({

@@ -3,6 +3,7 @@ import logging
 import tablib
 from datetime import datetime
 import time
+import json
 
 # Setup logging
 logging.basicConfig(
@@ -59,29 +60,16 @@ def export_leads(leads, format='xlsx'):
 def main():
     # Test queries (even smaller set for testing)
     queries = [
-        "cafe in Houston, TX",  # Smaller dataset for testing
-        "cafe in Austin, TX"
+        "lawyers in Houston, TX",  # Smaller dataset for testing
+        "lawyers in Austin, TX"
     ]
     
     # Initialize scraper
     scraper = GoogleMapsScraper()
     
     try:
-        # First run - simulate interruption after first query
-        print("=== First Run (Will stop after first query) ===")
-        leads = scraper.scrape([queries[0]])  # Only run first query
-        
-        if leads:
-            csv_file = export_leads(leads, 'csv')
-            logger.info(f"First run: Saved {len(leads)} leads to {csv_file}")
-        
-        # Simulate script interruption
-        print("\n=== Simulating script interruption ===")
-        time.sleep(2)
-        
-        # Second run - should resume from backup
-        print("\n=== Second Run (Should resume from backup) ===")
-        leads = scraper.scrape(queries)  # Run all queries
+        # Run all queries
+        leads = scraper.scrape(queries)
         
         # Export final results
         if leads:
