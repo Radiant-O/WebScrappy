@@ -1,64 +1,37 @@
-from scrapers.google_maps_scraper import GoogleMapsScraper
 import logging
-import tablib
+from scrapers.google_maps_scraper import GoogleMapsScraper
+import pandas as pd
+import os
 from datetime import datetime
-import time
-import json
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('scraper_log.txt')
-    ]
-)
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def export_leads(leads, format='xlsx'):
-    """Export leads to file"""
+def export_leads(leads, format='csv'):
+    """Export leads to CSV or XLSX file"""
     if not leads:
-        logger.warning("No leads to export")
-        return
-    
-    # Create dataset
-    headers = ['name', 'website', 'phone', 'email', 'address', 'rating', 'reviews', 'source', 'query']
-    
-    dataset = tablib.Dataset(headers=headers)
-    
-    # Add data
-    for lead in leads:
-        row = [
-            lead.get('name', ''),
-            lead.get('website', ''),
-            lead.get('phone', ''),
-            lead.get('email', ''),
-            lead.get('address', ''),
-            lead.get('rating', ''),
-            lead.get('reviews', ''),
-            lead.get('source', ''),
-            lead.get('query', '')
-        ]
-        dataset.append(row)
-    
-    # Create filename with timestamp
+        return None
+        
+    # Create output directory if it doesn't exist
+    if not os.path.exists('output'):
+        os.makedirs('output')
+        
+    # Generate filename with timestamp
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f'gmaps_leads_{timestamp}.{format}'
+    filename = f'output/leads_{timestamp}.{format}'
     
-    # Export based on format
-    if format == 'xlsx':
-        with open(filename, 'wb') as f:
-            f.write(dataset.export('xlsx'))
-    elif format == 'csv':
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(dataset.export('csv'))
-    
-    logger.info(f"Exported {len(leads)} leads to {filename}")
+    # Convert to DataFrame and export
+    df = pd.DataFrame(leads)
+    if format == 'csv':
+        df.to_csv(filename, index=False)
+    elif format == 'xlsx':
+        df.to_excel(filename, index=False)
+        
     return filename
 
 def main():
-    # Test queries (even smaller set for testing)
+    # Test queries
     queries = [
         "lawyers in Houston, TX",
         "lawyers in Austin, TX"

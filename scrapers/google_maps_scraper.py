@@ -105,38 +105,37 @@ class GoogleMapsScraper(BaseScraper):
         
         while retry_count < max_retries:
             try:
-                self.driver.get(f"https://www.google.com/maps/search/{query}")
-                time.sleep(5)  # Wait longer for initial load
+                # Use a more specific search URL
+                search_url = f"https://www.google.com/maps/search/{query.replace(' ', '+')}/"
+                self.driver.get(search_url)
+                time.sleep(5)  # Wait for initial load
                 
-                # Wait for results to load
-                WebDriverWait(self.driver, 20).until(
+                # Wait for results feed
+                feed = WebDriverWait(self.driver, 20).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, 'div[role="feed"]'))
                 )
                 
-                # Find all listings
-                listings = WebDriverWait(self.driver, 10).until(
-                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.Nv2PK'))
-                )
-                self.logger.info(f"Found {len(listings)} initial listings")
+                # Scroll a few times to load more results
+                for _ in range(3):
+                    self.driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", feed)
+                    time.sleep(2)
                 
-                # Process listings with better error handling
+                # Find all listings with a more reliable selector
+                listings = self.driver.find_elements(By.CSS_SELECTOR, 'div.Nv2PK')
+                self.logger.info(f"Found {len(listings)} listings")
+                
                 for idx, listing in enumerate(listings):
                     try:
-                        # Use JavaScript to click the listing
-                        try:
-                            self.driver.execute_script("arguments[0].click();", listing)
-                            time.sleep(3)
-                        except:
-                            continue
+                        # Click listing and wait for details
+                        self.driver.execute_script("arguments[0].click();", listing)
+                        time.sleep(3)
                         
-                        # Get business details with explicit waits
+                        # Get business name
                         name = WebDriverWait(self.driver, 10).until(
-                            EC.presence_of_element_located((By.CSS_SELECTOR, 'h1.DUwDvf'))
-                        ).text
+                            EC.presence_of_element_located((By.CSS_SELECTOR, 'h1.DUwDvf span'))
+                        ).text.strip()
                         
-                        self.click_more_info()
-                        
-                        # Extract data
+                        # Initialize lead data
                         lead_data = {
                             'name': name,
                             'website': None,
@@ -149,69 +148,82 @@ class GoogleMapsScraper(BaseScraper):
                             'query': query
                         }
                         
-                        # Try to get additional details
+                        # Get website
                         try:
-                            website_elem = self.driver.find_element(By.CSS_SELECTOR, 'a[data-item-id="authority"]')
+                            website_elem = WebDriverWait(self.driver, 5).until(
+                                EC.presence_of_element_located((By.CSS_SELECTOR, 'a[data-item-id="authority"]'))
+                            )
                             lead_data['website'] = website_elem.get_attribute('href')
                         except:
                             pass
-                            
+                        
+                        # Get phone
                         try:
                             phone_elem = self.driver.find_element(By.CSS_SELECTOR, 'button[data-tooltip="Copy phone number"]')
                             lead_data['phone'] = phone_elem.get_attribute('aria-label').replace('Phone:', '').strip()
                         except:
-                            try:
-                                phone_elem = self.driver.find_element(By.CSS_SELECTOR, 'button[data-item-id^="phone:tel:"]')
-                                lead_data['phone'] = phone_elem.text.strip()
-                            except:
-                                pass
+                            pass
                         
+                        # Get address
                         try:
                             address_elem = self.driver.find_element(By.CSS_SELECTOR, 'button[data-item-id^="address"]')
-                            lead_data['address'] = address_elem.text
+                            lead_data['address'] = address_elem.text.strip()
                         except:
                             pass
                         
-                        # Get additional info including email
-                        additional_info = ''
+                        # Get rating and reviews
                         try:
-                            info_elements = self.driver.find_elements(By.CSS_SELECTOR, 'div.rogA2c div.Io6YTe')
-                            additional_info = ' '.join([elem.text for elem in info_elements])
+                            rating_elem = self.driver.find_element(By.CSS_SELECTOR, 'span.ceNzKf')
+                            lead_data['rating'] = float(rating_elem.text.strip())
                             
-                            desc_elements = self.driver.find_elements(By.CSS_SELECTOR, 'div[jsaction*="pane.description"] div.PYvSYb')
-                            for desc in desc_elements:
-                                additional_info += ' ' + desc.text
-                                
-                            links = self.driver.find_elements(By.CSS_SELECTOR, 'a[href*="mailto:"]')
-                            for link in links:
-                                href = link.get_attribute('href')
-                                if href and 'mailto:' in href:
-                                    additional_info += ' ' + href.replace('mailto:', '')
-                                    
-                            lead_data['email'] = self.extract_email(additional_info)
+                            reviews_elem = self.driver.find_element(By.CSS_SELECTOR, 'span.F7nice')
+                            lead_data['reviews'] = int(reviews_elem.text.replace(',', '').strip())
                         except:
                             pass
                         
-                        if self.validate_data(lead_data):
-                            leads.append(self.format_lead_data(lead_data))
+                        # Get email from description and additional info
+                        try:
+                            # Look for email in various places
+                            email_sources = [
+                                self.driver.find_elements(By.CSS_SELECTOR, 'div.rogA2c'),
+                                self.driver.find_elements(By.CSS_SELECTOR, 'div[jsaction*="pane.description"]'),
+                                self.driver.find_elements(By.CSS_SELECTOR, 'a[href*="mailto:"]')
+                            ]
+                            
+                            email_text = ''
+                            for source in email_sources:
+                                for elem in source:
+                                    if 'href' in elem.get_attribute('outerHTML'):
+                                        href = elem.get_attribute('href')
+                                        if href and 'mailto:' in href:
+                                            email_text += ' ' + href
+                                    else:
+                                        email_text += ' ' + elem.text
+                            
+                            if email_text:
+                                lead_data['email'] = self.extract_email(email_text)
+                        except:
+                            pass
+                        
+                        # Add lead if it has minimum required data
+                        if name and (lead_data['phone'] or lead_data['website'] or lead_data['email']):
+                            leads.append(lead_data)
                             self.logger.info(f"Added lead {idx + 1}/{len(listings)}: {name}")
                         
                         time.sleep(1)
                         
                     except Exception as e:
-                        self.logger.error(f"Error processing listing {idx + 1}/{len(listings)}: {str(e)}")
+                        self.logger.error(f"Error processing listing {idx + 1}: {str(e)}")
                         continue
                 
-                # If we got here without errors, break the retry loop
-                break
-                
+                if leads:
+                    break
+                    
             except Exception as e:
                 self.logger.error(f"Error searching area (attempt {retry_count + 1}/{max_retries}): {str(e)}")
                 retry_count += 1
-                
                 if retry_count < max_retries:
-                    self.logger.info(f"Retrying search for query: {query}")
-                    time.sleep(5)  # Wait before retrying
+                    time.sleep(5)
                     continue
         
         return leads
